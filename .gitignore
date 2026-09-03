@@ -1,0 +1,40 @@
+# .env
+.env
+.env.local
+.env.*.local
+*.env
+.env.production
+.env.development
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+
+# Visual Studio Code
+.vscode/
+
+# Node modules (si usas Node.js)
+node_modules/
+
+# Logs
+*.log

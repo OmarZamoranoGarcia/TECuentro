@@ -9,6 +9,7 @@ using TEContigo.Modules.Auth.Models;
 using TEContigo.Modules.Auth.Repositories;
 using TEContigo.Modules.Email.Services;
 using TEContigo.Modules.Email.DTOs;
+using TEContigo.Shared.Security;
 
 namespace TEContigo.Modules.Auth.Services
 {
@@ -17,15 +18,18 @@ namespace TEContigo.Modules.Auth.Services
         private readonly IConfiguration _configuration;
         private readonly IAuthRepository _authRepository;
         private readonly IEmailService _emailService;
+        private readonly IPasswordHasher _passwordHasher;
 
         public AuthService(
             IAuthRepository authRepository,
             IConfiguration configuration,
-            IEmailService emailService)
+            IEmailService emailService,
+            IPasswordHasher passwordHasher)
         {
             _authRepository = authRepository;
             _configuration = configuration;
             _emailService = emailService; 
+            _passwordHasher = passwordHasher;
         }
 
         public async Task<MessageResponseDto> RegisterAsync(RegisterDto dto)
@@ -72,7 +76,7 @@ namespace TEContigo.Modules.Auth.Services
             await _authRepository.DeletePendingUserByEmailAsync(email);
 
             // 6. Password hashing with Argon2id
-            var passwordHash = await HashPasswordAsync(dto.Password);
+            var passwordHash = await _passwordHasher.HashAsync(dto.Password);
 
             // 7. Verification code generation (6 digits)
             var verificationCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
@@ -141,7 +145,7 @@ namespace TEContigo.Modules.Auth.Services
             }
 
             var passwordValid =
-                await VerifyPasswordAsync(
+                await _passwordHasher.VerifyAsync(
                     dto.Password,
                     user.PasswordHash);
 
@@ -393,74 +397,7 @@ namespace TEContigo.Modules.Auth.Services
                 Message = "Sesión cerrada correctamente."
             };
         }
-
-        // ============================================================
-        // PASSWORD / ARGON2
-        // ============================================================
-
-        private async Task<string> HashPasswordAsync(string password)
-        {
-            byte[] salt = RandomNumberGenerator.GetBytes(16);
-
-            var argon2 = new Argon2id(
-                Encoding.UTF8.GetBytes(password));
-
-            argon2.Salt = salt;
-            argon2.DegreeOfParallelism = 2;
-            argon2.Iterations = 4;
-            argon2.MemorySize = 65536;
-
-            byte[] hash = await argon2.GetBytesAsync(32);
-
-            return $"$argon2id$v=19$m=65536,t=4,p=2${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
-        }
-
-        private async Task<bool> VerifyPasswordAsync(string password,string storedHash)
-        {
-            try
-            {
-                var parts = storedHash.Split('$');
-
-                if (parts.Length != 6)
-                    return false;
-
-                var parameters = parts[3];
-
-                var salt = Convert.FromBase64String(parts[4]);
-                var expectedHash = Convert.FromBase64String(parts[5]);
-
-                var parameterParts = parameters.Split(',');
-
-                var memory = int.Parse(
-                    parameterParts[0].Split('=')[1]);
-
-                var iterations = int.Parse(
-                    parameterParts[1].Split('=')[1]);
-
-                var parallelism = int.Parse(
-                    parameterParts[2].Split('=')[1]);
-
-                var argon2 = new Argon2id(
-                    Encoding.UTF8.GetBytes(password));
-
-                argon2.Salt = salt;
-                argon2.MemorySize = memory;
-                argon2.Iterations = iterations;
-                argon2.DegreeOfParallelism = parallelism;
-
-                var actualHash =
-                    await argon2.GetBytesAsync(expectedHash.Length);
-
-                return CryptographicOperations.FixedTimeEquals(
-                    actualHash,
-                    expectedHash);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
+        
         // ============================================================
         // JWT
         // ============================================================

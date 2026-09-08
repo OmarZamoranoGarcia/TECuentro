@@ -1,18 +1,22 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Microsoft.OpenApi.Models;
-
+using System.Text;
 using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.Auth.Repositories;
 using TEContigo.Modules.Auth.Services;
 using TEContigo.Modules.Email.Services;
+using TEContigo.Modules.Reports.Repositories;
+using TEContigo.Modules.Reports.Services;
 using TEContigo.Modules.Users.Repositories;
 using TEContigo.Modules.Users.Services;
 using TEContigo.Shared.Security;
+using TEContigo.Shared.Security.CurrentUser;
+using TEContigo.Shared.Security.Password;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHttpContextAccessor();
 
 // Add services to the container.
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -22,6 +26,9 @@ builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IUsersRepository, UsersRepository>();
 builder.Services.AddScoped<IUsersService, UsersService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<IReportsRepository, ReportsRepository>();
+builder.Services.AddScoped<IReportsService, ReportsService>();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

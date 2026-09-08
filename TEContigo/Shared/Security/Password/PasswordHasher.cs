@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TEContigo.Shared.Security
+namespace TEContigo.Shared.Security.Password
 {
     public class PasswordHasher : IPasswordHasher
     {

@@ -1,7 +1,7 @@
 ﻿using TEContigo.Modules.Users.Models;
 using TEContigo.Modules.Users.Repositories;
 using TEContigo.Modules.Users.DTOs;
-using TEContigo.Shared.Security;
+using TEContigo.Shared.Security.Password;
 
 namespace TEContigo.Modules.Users.Services
 {

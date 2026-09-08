@@ -1,4 +1,4 @@
-﻿namespace TEContigo.Shared.Security
+﻿namespace TEContigo.Shared.Security.Password
 {
     public interface IPasswordHasher
     {

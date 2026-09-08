@@ -9,7 +9,7 @@ using TEContigo.Modules.Auth.Models;
 using TEContigo.Modules.Auth.Repositories;
 using TEContigo.Modules.Email.Services;
 using TEContigo.Modules.Email.DTOs;
-using TEContigo.Shared.Security;
+using TEContigo.Shared.Security.Password;
 
 namespace TEContigo.Modules.Auth.Services
 {

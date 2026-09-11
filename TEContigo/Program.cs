@@ -7,6 +7,10 @@ using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.Auth.Repositories;
 using TEContigo.Modules.Auth.Services;
 using TEContigo.Modules.Email.Services;
+using TEContigo.Modules.FoundItems.Repositories;
+using TEContigo.Modules.FoundItems.Services;
+using TEContigo.Modules.LostItems.Repositories;
+using TEContigo.Modules.LostItems.Services;
 using TEContigo.Modules.Reports.Repositories;
 using TEContigo.Modules.Reports.Services;
 using TEContigo.Modules.Users.Repositories;
@@ -19,16 +23,28 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpContextAccessor();
 
 // Add services to the container.
+builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
+
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
+
 builder.Services.AddScoped<IUsersRepository, UsersRepository>();
 builder.Services.AddScoped<IUsersService, UsersService>();
+
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+
 builder.Services.AddScoped<IReportsRepository, ReportsRepository>();
 builder.Services.AddScoped<IReportsService, ReportsService>();
-builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+builder.Services.AddScoped<ILostItemsService,LostItemsService>();
+builder.Services.AddScoped<ILostItemsRepository,LostItemsRepository>();
+
+builder.Services.AddScoped<IFoundItemsRepository,FoundItemsRepository>();
+builder.Services.AddScoped<IFoundItemsService,FoundItemsService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

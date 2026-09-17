@@ -1,4 +1,5 @@
-﻿using TEContigo.Modules.FoundItems.DTOs;
+﻿using TEContigo.Infrastructure.ImagesStorage;
+using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
 using TEContigo.Modules.FoundItems.Repositories;
 using TEContigo.Shared.Security;
@@ -8,23 +9,39 @@ namespace TEContigo.Modules.FoundItems.Services;
 
 public class FoundItemsService : IFoundItemsService
 {
+    private const string RoleAdmin = "ADMIN";
+    private const string RoleModerator = "MODERATOR";
+    private const string StatusActive = "Activo";
+
     private readonly IFoundItemsRepository _foundItemsRepository;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IImageService _imageService;
 
     public FoundItemsService(
         IFoundItemsRepository foundItemsRepository,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IImageService imageService)
     {
         _foundItemsRepository = foundItemsRepository;
         _currentUserService = currentUserService;
+        _imageService = imageService;
     }
 
-    public async Task<IEnumerable<FoundItemsModel>> GetAllAsync()
+    public async Task<IEnumerable<FoundItemDto>> GetAllAsync()
     {
-        return await _foundItemsRepository.GetAllAsync();
+        var foundItems = await _foundItemsRepository.GetAllAsync();
+
+        var tasks = foundItems.Select(async foundItem =>
+        {
+            var photoUrl = await GetPhotoUrlAsync(foundItem.PhotoPath);
+
+            return MapToDto(foundItem, photoUrl);
+        });
+
+        return await Task.WhenAll(tasks);
     }
 
-    public async Task<FoundItemsModel?> GetByIdAsync(long id)
+    public async Task<FoundItemDto?> GetByIdAsync(long id)
     {
         var foundItem =
             await _foundItemsRepository.GetByIdAsync(id);
@@ -35,7 +52,9 @@ public class FoundItemsService : IFoundItemsService
                 "La publicación no existe.");
         }
 
-        return foundItem;
+        var photoUrl = await GetPhotoUrlAsync(foundItem.PhotoPath);
+
+        return MapToDto(foundItem, photoUrl);
     }
 
     public async Task<FoundItemResponseDto> CreateAsync(
@@ -49,8 +68,8 @@ public class FoundItemsService : IFoundItemsService
             Color = dto.Color,
             Location = dto.Location,
             Description = dto.Description,
-            PhotoPath = dto.PhotoPath,
-            Status = "Activo",
+            PhotoPath = null,
+            Status = StatusActive,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -58,12 +77,43 @@ public class FoundItemsService : IFoundItemsService
         var foundItemId =
             await _foundItemsRepository.CreateAsync(foundItem);
 
-        return new FoundItemResponseDto
+        string? uploadedPhotoPath = null;
+
+        try
         {
-            Success = true,
-            Message = "Publicación creada correctamente.",
-            Id = foundItemId
-        };
+            if (dto.Photo != null)
+            {
+                uploadedPhotoPath =
+                    await _imageService.UploadAsync(
+                        dto.Photo,
+                        $"foundItems/{foundItemId}");
+
+                foundItem.Id = foundItemId;
+                foundItem.PhotoPath = uploadedPhotoPath;
+
+                await _foundItemsRepository.UpdateAsync(foundItem);
+            }
+
+            return new FoundItemResponseDto
+            {
+                Success = true,
+                Message = "Publicación creada correctamente.",
+                Id = foundItemId
+            };
+        }
+        catch
+        {
+            if (uploadedPhotoPath != null)
+            {
+                await _imageService.DeleteAsync(
+                    uploadedPhotoPath);
+            }
+
+            await _foundItemsRepository.DeleteAsync(
+                foundItemId);
+
+            throw;
+        }
     }
 
     public async Task<FoundItemResponseDto> UpdateAsync(
@@ -83,49 +133,83 @@ public class FoundItemsService : IFoundItemsService
             _currentUserService.UserId;
 
         var isAdmin =
-            _currentUserService.IsInRole("ADMIN");
+            _currentUserService.IsInRole(RoleAdmin);
 
         var isModerator =
-            _currentUserService.IsInRole("MODERATOR");
+            _currentUserService.IsInRole(RoleModerator);
 
         var isOwner =
             existingFoundItem.UserId == currentUserId;
 
-        // ADMIN y MODERATOR solamente pueden modificar el status.
-        if (isAdmin || isModerator)
+        var oldPhotoPath = existingFoundItem.PhotoPath;
+        string? newPhotoPath = null;
+
+        try
         {
-            if (string.IsNullOrWhiteSpace(dto.Status))
+            // ADMIN y MODERATOR solamente pueden modificar el status.
+            if (isAdmin || isModerator)
             {
-                throw new ArgumentException(
-                    "Debes proporcionar un status.");
+                if (string.IsNullOrWhiteSpace(dto.Status))
+                {
+                    throw new ArgumentException(
+                        "Debes proporcionar un status.");
+                }
+
+                existingFoundItem.Status = dto.Status;
+            }
+            // USER solamente puede modificar su propia publicación.
+            else if (isOwner)
+            {
+                existingFoundItem.Category = dto.Category;
+                existingFoundItem.Article = dto.Article;
+                existingFoundItem.Color = dto.Color;
+                existingFoundItem.Location = dto.Location;
+                existingFoundItem.Description = dto.Description;
+
+                if (dto.Photo != null)
+                {
+                    newPhotoPath =
+                        await _imageService.UploadAsync(
+                            dto.Photo,
+                            $"foundItems/{id}");
+
+                    existingFoundItem.PhotoPath = newPhotoPath;
+                }
+            }
+            else
+            {
+                throw new UnauthorizedAccessException(
+                    "No tienes permiso para modificar esta publicación.");
             }
 
-            existingFoundItem.Status = dto.Status;
-        }
-        // USER solamente puede modificar su propia publicación.
-        else if (isOwner)
-        {
-            existingFoundItem.Category = dto.Category;
-            existingFoundItem.Article = dto.Article;
-            existingFoundItem.Color = dto.Color;
-            existingFoundItem.Location = dto.Location;
-            existingFoundItem.Description = dto.Description;
-            existingFoundItem.PhotoPath = dto.PhotoPath;
-        }
-        else
-        {
-            throw new UnauthorizedAccessException(
-                "No tienes permiso para modificar esta publicación.");
-        }
+            existingFoundItem.UpdatedAt = DateTime.UtcNow;
 
-        await _foundItemsRepository.UpdateAsync(existingFoundItem);
+            await _foundItemsRepository.UpdateAsync(existingFoundItem);
 
-        return new FoundItemResponseDto
+            if (newPhotoPath != null &&
+                !string.IsNullOrWhiteSpace(oldPhotoPath))
+            {
+                await _imageService.DeleteAsync(
+                    oldPhotoPath);
+            }
+
+            return new FoundItemResponseDto
+            {
+                Success = true,
+                Message = "Publicación actualizada correctamente.",
+                Id = existingFoundItem.Id
+            };
+        }
+        catch
         {
-            Success = true,
-            Message = "Publicación actualizada correctamente.",
-            Id = existingFoundItem.Id
-        };
+            if (newPhotoPath != null)
+            {
+                await _imageService.DeleteAsync(
+                    newPhotoPath);
+            }
+
+            throw;
+        }
     }
 
     public async Task<FoundItemResponseDto> DeleteAsync(long id)
@@ -143,10 +227,10 @@ public class FoundItemsService : IFoundItemsService
             _currentUserService.UserId;
 
         var isAdmin =
-            _currentUserService.IsInRole("ADMIN");
+            _currentUserService.IsInRole(RoleAdmin);
 
         var isModerator =
-            _currentUserService.IsInRole("MODERATOR");
+            _currentUserService.IsInRole(RoleModerator);
 
         var isOwner =
             existingFoundItem.UserId == currentUserId;
@@ -158,13 +242,60 @@ public class FoundItemsService : IFoundItemsService
                 "No tienes permiso para eliminar esta publicación.");
         }
 
+        /*
+         * Primero eliminamos la publicación de la base de datos.
+         * Si esto falla, la imagen en S3 sigue intacta y no queda
+         * nada inconsistente.
+         */
         await _foundItemsRepository.DeleteAsync(id);
+
+        /*
+         * Solo si el borrado en la base de datos tuvo éxito,
+         * eliminamos la imagen en S3. Si esto llegara a fallar,
+         * el peor caso es una imagen huérfana en S3, nunca un
+         * registro roto en la base de datos.
+         */
+        if (!string.IsNullOrWhiteSpace(existingFoundItem.PhotoPath))
+        {
+            await _imageService.DeleteAsync(
+                existingFoundItem.PhotoPath);
+        }
 
         return new FoundItemResponseDto
         {
             Success = true,
             Message = "Publicación eliminada correctamente.",
             Id = existingFoundItem.Id
+        };
+    }
+
+    private async Task<string?> GetPhotoUrlAsync(string? photoPath)
+    {
+        if (string.IsNullOrWhiteSpace(photoPath))
+        {
+            return null;
+        }
+
+        return await _imageService.GetUrlAsync(photoPath);
+    }
+
+    private static FoundItemDto MapToDto(
+        FoundItemsModel foundItem,
+        string? photoUrl)
+    {
+        return new FoundItemDto
+        {
+            Id = foundItem.Id,
+            UserId = foundItem.UserId,
+            Category = foundItem.Category,
+            Article = foundItem.Article,
+            Color = foundItem.Color,
+            Location = foundItem.Location,
+            Description = foundItem.Description,
+            PhotoUrl = photoUrl,
+            Status = foundItem.Status,
+            CreatedAt = foundItem.CreatedAt,
+            UpdatedAt = foundItem.UpdatedAt
         };
     }
 }

@@ -7,6 +7,6 @@
         public string Color { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public string? PhotoPath { get; set; }
+        public IFormFile? Photo { get; set; }
     }
 }

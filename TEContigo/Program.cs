@@ -1,9 +1,13 @@
+using Amazon;
+using Amazon.Runtime;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using TEContigo.Infrastructure.Database;
+using TEContigo.Infrastructure.ImagesStorage;
 using TEContigo.Modules.Auth.Repositories;
 using TEContigo.Modules.Auth.Services;
 using TEContigo.Modules.Email.Services;
@@ -45,6 +49,42 @@ builder.Services.AddScoped<ILostItemsRepository,LostItemsRepository>();
 
 builder.Services.AddScoped<IFoundItemsRepository,FoundItemsRepository>();
 builder.Services.AddScoped<IFoundItemsService,FoundItemsService>();
+
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+
+    var regionName =
+        configuration["AWS:Region"]
+        ?? throw new InvalidOperationException(
+            "AWS:Region no está configurado.");
+
+    var accessKey =
+        configuration["AWS:AccessKeyId"]
+        ?? throw new InvalidOperationException(
+            "AWS:AccessKeyId no está configurado.");
+
+    var secretKey =
+        configuration["AWS:SecretAccessKey"]
+        ?? throw new InvalidOperationException(
+            "AWS:SecretAccessKey no está configurado.");
+
+    var sessionToken =
+        configuration["AWS:SessionToken"]
+        ?? throw new InvalidOperationException(
+            "AWS:SessionToken no está configurado.");
+
+    var credentials = new SessionAWSCredentials(
+        accessKey,
+        secretKey,
+        sessionToken);
+
+    return new AmazonS3Client(
+        credentials,
+        RegionEndpoint.GetBySystemName(regionName));
+});
+
+builder.Services.AddScoped<IImageService, S3ImageService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

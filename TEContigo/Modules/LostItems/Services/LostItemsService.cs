@@ -1,4 +1,5 @@
-﻿using TEContigo.Modules.LostItems.DTOs;
+﻿using TEContigo.Infrastructure.ImagesStorage;
+using TEContigo.Modules.LostItems.DTOs;
 using TEContigo.Modules.LostItems.Models;
 using TEContigo.Modules.LostItems.Repositories;
 using TEContigo.Shared.Security;
@@ -8,23 +9,39 @@ namespace TEContigo.Modules.LostItems.Services;
 
 public class LostItemsService : ILostItemsService
 {
+    private const string RoleAdmin = "ADMIN";
+    private const string RoleModerator = "MODERATOR";
+    private const string StatusActive = "Activo";
+
     private readonly ILostItemsRepository _lostItemsRepository;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IImageService _imageService;
 
     public LostItemsService(
         ILostItemsRepository lostItemsRepository,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IImageService imageService)
     {
         _lostItemsRepository = lostItemsRepository;
         _currentUserService = currentUserService;
+        _imageService = imageService;
     }
 
-    public async Task<IEnumerable<LostItemsModel>> GetAllAsync()
+    public async Task<IEnumerable<LostItemDto>> GetAllAsync()
     {
-        return await _lostItemsRepository.GetAllAsync();
+        var lostItems = await _lostItemsRepository.GetAllAsync();
+
+        var tasks = lostItems.Select(async lostItem =>
+        {
+            var photoUrl = await GetPhotoUrlAsync(lostItem.PhotoPath);
+
+            return MapToDto(lostItem, photoUrl);
+        });
+
+        return await Task.WhenAll(tasks);
     }
 
-    public async Task<LostItemsModel?> GetByIdAsync(long id)
+    public async Task<LostItemDto?> GetByIdAsync(long id)
     {
         var lostItem =
             await _lostItemsRepository.GetByIdAsync(id);
@@ -35,7 +52,9 @@ public class LostItemsService : ILostItemsService
                 "La publicación no existe.");
         }
 
-        return lostItem;
+        var photoUrl = await GetPhotoUrlAsync(lostItem.PhotoPath);
+
+        return MapToDto(lostItem, photoUrl);
     }
 
     public async Task<LostItemResponseDto> CreateAsync(CreateLostItemDto dto)
@@ -48,8 +67,8 @@ public class LostItemsService : ILostItemsService
             Color = dto.Color,
             Location = dto.Location,
             Description = dto.Description,
-            PhotoPath = dto.PhotoPath,
-            Status = "Activo",
+            PhotoPath = null,
+            Status = StatusActive,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -57,15 +76,46 @@ public class LostItemsService : ILostItemsService
         var lostItemId =
             await _lostItemsRepository.CreateAsync(lostItem);
 
-        return new LostItemResponseDto
+        string? uploadedPhotoPath = null;
+
+        try
         {
-            Success = true,
-            Message = "Publicación creada correctamente.",
-            Id = lostItemId
-        };
+            if (dto.Photo != null)
+            {
+                uploadedPhotoPath =
+                    await _imageService.UploadAsync(
+                        dto.Photo,
+                        $"lostItems/{lostItemId}");
+
+                lostItem.Id = lostItemId;
+                lostItem.PhotoPath = uploadedPhotoPath;
+
+                await _lostItemsRepository.UpdateAsync(lostItem);
+            }
+
+            return new LostItemResponseDto
+            {
+                Success = true,
+                Message = "Publicación creada correctamente.",
+                Id = lostItemId
+            };
+        }
+        catch
+        {
+            if (uploadedPhotoPath != null)
+            {
+                await _imageService.DeleteAsync(
+                    uploadedPhotoPath);
+            }
+
+            await _lostItemsRepository.DeleteAsync(
+                lostItemId);
+
+            throw;
+        }
     }
 
-    public async Task<LostItemResponseDto> UpdateAsync(long id,UpdateLostItemDto dto)
+    public async Task<LostItemResponseDto> UpdateAsync(long id, UpdateLostItemDto dto)
     {
         var existingLostItem =
             await _lostItemsRepository.GetByIdAsync(id);
@@ -80,48 +130,81 @@ public class LostItemsService : ILostItemsService
             _currentUserService.UserId;
 
         var isAdmin =
-            _currentUserService.IsInRole("ADMIN");
+            _currentUserService.IsInRole(RoleAdmin);
 
         var isModerator =
-            _currentUserService.IsInRole("MODERATOR");
+            _currentUserService.IsInRole(RoleModerator);
 
         var isOwner =
             existingLostItem.UserId == currentUserId;
 
-        if (isAdmin || isModerator)
+        var oldPhotoPath = existingLostItem.PhotoPath;
+        string? newPhotoPath = null;
+
+        try
         {
-            if (string.IsNullOrWhiteSpace(dto.Status))
+            if (isAdmin || isModerator)
             {
-                throw new ArgumentException(
-                    "Debes proporcionar un status.");
+                if (string.IsNullOrWhiteSpace(dto.Status))
+                {
+                    throw new ArgumentException(
+                        "Debes proporcionar un status.");
+                }
+
+                existingLostItem.Status = dto.Status;
+            }
+            else if (isOwner)
+            {
+                existingLostItem.Category = dto.Category;
+                existingLostItem.Article = dto.Article;
+                existingLostItem.Color = dto.Color;
+                existingLostItem.Location = dto.Location;
+                existingLostItem.Description = dto.Description;
+
+                if (dto.Photo != null)
+                {
+                    newPhotoPath =
+                        await _imageService.UploadAsync(
+                            dto.Photo,
+                            $"lostItems/{id}");
+
+                    existingLostItem.PhotoPath = newPhotoPath;
+                }
+            }
+            else
+            {
+                throw new UnauthorizedAccessException(
+                    "No tienes permiso para modificar esta publicación.");
             }
 
-            existingLostItem.Status = dto.Status;
-        }
-        
-        else if (isOwner)
-        {
-            existingLostItem.Category = dto.Category;
-            existingLostItem.Article = dto.Article;
-            existingLostItem.Color = dto.Color;
-            existingLostItem.Location = dto.Location;
-            existingLostItem.Description = dto.Description;
-            existingLostItem.PhotoPath = dto.PhotoPath;
-        }
-        else
-        {
-            throw new UnauthorizedAccessException(
-                "No tienes permiso para modificar esta publicación.");
-        }
+            existingLostItem.UpdatedAt = DateTime.UtcNow;
 
-        await _lostItemsRepository.UpdateAsync(existingLostItem);
+            await _lostItemsRepository.UpdateAsync(existingLostItem);
 
-        return new LostItemResponseDto
+            if (newPhotoPath != null &&
+                !string.IsNullOrWhiteSpace(oldPhotoPath))
+            {
+                await _imageService.DeleteAsync(
+                    oldPhotoPath);
+            }
+
+            return new LostItemResponseDto
+            {
+                Success = true,
+                Message = "Publicación actualizada correctamente.",
+                Id = existingLostItem.Id
+            };
+        }
+        catch
         {
-            Success = true,
-            Message = "Publicación actualizada correctamente.",
-            Id = existingLostItem.Id
-        };
+            if (newPhotoPath != null)
+            {
+                await _imageService.DeleteAsync(
+                    newPhotoPath);
+            }
+
+            throw;
+        }
     }
 
     public async Task<LostItemResponseDto> DeleteAsync(long id)
@@ -139,10 +222,10 @@ public class LostItemsService : ILostItemsService
             _currentUserService.UserId;
 
         var isAdmin =
-            _currentUserService.IsInRole("ADMIN");
+            _currentUserService.IsInRole(RoleAdmin);
 
         var isModerator =
-            _currentUserService.IsInRole("MODERATOR");
+            _currentUserService.IsInRole(RoleModerator);
 
         var isOwner =
             existingLostItem.UserId == currentUserId;
@@ -153,13 +236,60 @@ public class LostItemsService : ILostItemsService
                 "No tienes permiso para eliminar esta publicación.");
         }
 
+        /*
+         * Primero eliminamos la publicación de la base de datos.
+         * Si esto falla, la imagen en S3 sigue intacta y no queda
+         * nada inconsistente.
+         */
         await _lostItemsRepository.DeleteAsync(id);
+
+        /*
+         * Solo si el borrado en la base de datos tuvo éxito,
+         * eliminamos la imagen en S3. Si esto llegara a fallar,
+         * el peor caso es una imagen huérfana en S3, nunca un
+         * registro roto en la base de datos.
+         */
+        if (!string.IsNullOrWhiteSpace(existingLostItem.PhotoPath))
+        {
+            await _imageService.DeleteAsync(
+                existingLostItem.PhotoPath);
+        }
 
         return new LostItemResponseDto
         {
             Success = true,
             Message = "Publicación eliminada correctamente.",
             Id = existingLostItem.Id
+        };
+    }
+
+    private async Task<string?> GetPhotoUrlAsync(string? photoPath)
+    {
+        if (string.IsNullOrWhiteSpace(photoPath))
+        {
+            return null;
+        }
+
+        return await _imageService.GetUrlAsync(photoPath);
+    }
+
+    private static LostItemDto MapToDto(
+        LostItemsModel lostItem,
+        string? photoUrl)
+    {
+        return new LostItemDto
+        {
+            Id = lostItem.Id,
+            UserId = lostItem.UserId,
+            Category = lostItem.Category,
+            Article = lostItem.Article,
+            Color = lostItem.Color,
+            Location = lostItem.Location,
+            Description = lostItem.Description,
+            PhotoUrl = photoUrl,
+            Status = lostItem.Status,
+            CreatedAt = lostItem.CreatedAt,
+            UpdatedAt = lostItem.UpdatedAt
         };
     }
 }

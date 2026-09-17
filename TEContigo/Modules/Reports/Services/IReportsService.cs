@@ -5,9 +5,9 @@ namespace TEContigo.Modules.Reports.Services
 {
     public interface IReportsService
     {
-        Task<IEnumerable<ReportsModel>> GetAllAsync();
+        Task<IEnumerable<ReportDto>> GetAllAsync();
 
-        Task<ReportsModel?> GetByIdAsync(long id);
+        Task<ReportDto?> GetByIdAsync(long id);
 
         Task<ReportResponseDto> CreateAsync(CreateReportDto dto);
 

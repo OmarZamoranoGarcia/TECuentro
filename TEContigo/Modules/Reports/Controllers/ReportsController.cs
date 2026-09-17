@@ -34,8 +34,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateReport(
-    CreateReportDto dto)
+    public async Task<IActionResult> CreateReport(CreateReportDto dto)
     {
         var response = await _reportsService.CreateAsync(dto);
 

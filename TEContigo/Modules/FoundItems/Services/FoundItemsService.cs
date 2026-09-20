@@ -2,6 +2,7 @@
 using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
 using TEContigo.Modules.FoundItems.Repositories;
+using TEContigo.Modules.Matches.Services;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 
@@ -16,15 +17,18 @@ public class FoundItemsService : IFoundItemsService
     private readonly IFoundItemsRepository _foundItemsRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IImageService _imageService;
+    private readonly IMatchesService _matchesService;
 
     public FoundItemsService(
         IFoundItemsRepository foundItemsRepository,
         ICurrentUserService currentUserService,
-        IImageService imageService)
+        IImageService imageService,
+        IMatchesService matchesService)
     {
         _foundItemsRepository = foundItemsRepository;
         _currentUserService = currentUserService;
         _imageService = imageService;
+        _matchesService = matchesService;
     }
 
     public async Task<IEnumerable<FoundItemDto>> GetAllAsync()
@@ -94,6 +98,13 @@ public class FoundItemsService : IFoundItemsService
                 await _foundItemsRepository.UpdateAsync(foundItem);
             }
 
+            // El matching se dispara aquí, DESPUÉS de que la publicación
+            // ya quedó guardada correctamente (con o sin foto). Si el
+            // matching fallara, no queremos perder la publicación ni la
+            // imagen ya subida, así que va antes del return y con su
+            // propio manejo de errores (no se propaga hacia el catch).
+            await SafeGenerateMatchesAsync(foundItemId);
+
             return new FoundItemResponseDto
             {
                 Success = true,
@@ -113,6 +124,22 @@ public class FoundItemsService : IFoundItemsService
                 foundItemId);
 
             throw;
+        }
+    }
+
+    private async Task SafeGenerateMatchesAsync(long foundItemId)
+    {
+        try
+        {
+            await _matchesService.GenerateMatchesForFoundItemAsync(foundItemId);
+        }
+        catch
+        {
+            // El matching es un proceso secundario: si falla, no debe
+            // tumbar la creación de la publicación que ya se guardó
+            // correctamente. Aquí es donde, cuando agregues logging
+            // (ILogger), deberías registrar el error para investigarlo,
+            // en vez de tragártelo en silencio.
         }
     }
 

@@ -2,6 +2,7 @@
 using TEContigo.Modules.LostItems.DTOs;
 using TEContigo.Modules.LostItems.Models;
 using TEContigo.Modules.LostItems.Repositories;
+using TEContigo.Modules.Matches.Services;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 
@@ -16,15 +17,18 @@ public class LostItemsService : ILostItemsService
     private readonly ILostItemsRepository _lostItemsRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IImageService _imageService;
+    private readonly IMatchesService _matchesService;
 
     public LostItemsService(
         ILostItemsRepository lostItemsRepository,
         ICurrentUserService currentUserService,
-        IImageService imageService)
+        IImageService imageService,
+        IMatchesService matchesService)
     {
         _lostItemsRepository = lostItemsRepository;
         _currentUserService = currentUserService;
         _imageService = imageService;
+        _matchesService = matchesService;
     }
 
     public async Task<IEnumerable<LostItemDto>> GetAllAsync()
@@ -93,6 +97,13 @@ public class LostItemsService : ILostItemsService
                 await _lostItemsRepository.UpdateAsync(lostItem);
             }
 
+            // El matching se dispara aquí, DESPUÉS de que la publicación
+            // ya quedó guardada correctamente (con o sin foto). Si el
+            // matching fallara, no queremos perder la publicación ni la
+            // imagen ya subida, así que va antes del return y con su
+            // propio manejo de errores (no se propaga hacia el catch).
+            await SafeGenerateMatchesAsync(lostItemId);
+
             return new LostItemResponseDto
             {
                 Success = true,
@@ -112,6 +123,22 @@ public class LostItemsService : ILostItemsService
                 lostItemId);
 
             throw;
+        }
+    }
+
+    private async Task SafeGenerateMatchesAsync(long lostItemId)
+    {
+        try
+        {
+            await _matchesService.GenerateMatchesForLostItemAsync(lostItemId);
+        }
+        catch
+        {
+            // El matching es un proceso secundario: si falla, no debe
+            // tumbar la creación de la publicación que ya se guardó
+            // correctamente. Aquí es donde, cuando agregues logging
+            // (ILogger), deberías registrar el error para investigarlo,
+            // en vez de tragártelo en silencio.
         }
     }
 

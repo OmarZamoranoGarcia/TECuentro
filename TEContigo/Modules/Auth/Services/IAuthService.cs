@@ -4,6 +4,8 @@ namespace TEContigo.Modules.Auth.Services
 {
     public interface IAuthService
     {
+        Task<MessageResponseDto> RegisterModeratorAsync(RegisterModeratorDto dto);
+
         Task<MessageResponseDto> RegisterAsync(RegisterDto dto);
 
         Task<AuthResponseDto> LoginAsync(LoginDto dto);

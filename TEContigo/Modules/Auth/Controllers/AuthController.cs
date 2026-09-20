@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Text.Json;
-
+    
 using TEContigo.Modules.Auth.DTOs;
 using TEContigo.Modules.Auth.Services;
 
@@ -15,6 +16,15 @@ namespace TEContigo.Modules.Auth.Controllers
         public AuthController(IAuthService authService)
         {
             _authService = authService;
+        }
+
+        [HttpPost("register-moderator")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> RegisterModerator(RegisterModeratorDto dto)
+        {
+            var result = await _authService.RegisterModeratorAsync(dto);
+
+            return Ok(result);
         }
 
         [HttpPost("register")]

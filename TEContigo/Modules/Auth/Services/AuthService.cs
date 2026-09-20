@@ -32,6 +32,75 @@ namespace TEContigo.Modules.Auth.Services
             _passwordHasher = passwordHasher;
         }
 
+        public async Task<MessageResponseDto> RegisterModeratorAsync(RegisterModeratorDto dto)
+        {
+            // 1. Validate data
+            if (dto.ControlNumber <= 0 ||
+                string.IsNullOrWhiteSpace(dto.FirstName) ||
+                string.IsNullOrWhiteSpace(dto.LastNamePaternal) ||
+                string.IsNullOrWhiteSpace(dto.LastNameMaternal) ||
+                string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Password))
+            {
+                throw new ArgumentException(
+                    "Todos los campos son obligatorios.");
+            }
+
+            // 2. Role = MODERATOR
+            if (string.IsNullOrWhiteSpace(dto.Role) || dto.Role != "MODERATOR")
+            {
+                throw new ArgumentException("El rol debe ser MODERATOR.");
+            }
+
+            var role = dto.Role;
+
+            // 3. Validate institutional email
+            if (!dto.Email.EndsWith(
+                    "@tectijuana.edu.mx",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    "Debes utilizar un correo institucional.");
+            }
+
+            var email = dto.Email.Trim().ToLowerInvariant();
+
+            // 4. Check existing email
+            if (await _authRepository.UserExistsByEmailAsync(email))
+            {
+                throw new InvalidOperationException(
+                    "El correo electrónico ya está registrado.");
+            }
+
+            // 5. Check existing control number
+            if (await _authRepository.UserExistsByControlNumberAsync(
+                    dto.ControlNumber))
+            {
+                throw new InvalidOperationException(
+                    "El número de control ya está registrado.");
+            }
+
+            // 6. Password hashing with Argon2id
+            var passwordHash = await _passwordHasher.HashAsync(dto.Password);
+
+            // 7. Crear directamente en Users (sin PendingUser, sin código de
+            // verificación) — email_verified queda TRUE por el DEFAULT de la
+            // tabla, ya que el admin está validando la identidad manualmente.
+            await _authRepository.CreateUserAsync(
+                dto.ControlNumber,
+                dto.FirstName.Trim(),
+                dto.LastNamePaternal.Trim(),
+                dto.LastNameMaternal.Trim(),
+                email,
+                passwordHash,
+                role);
+
+            return new MessageResponseDto
+            {
+                Message = $"Cuenta de {role} creada correctamente."
+            };
+        }
+
         public async Task<MessageResponseDto> RegisterAsync(RegisterDto dto)
         {
             // 1. Validate data

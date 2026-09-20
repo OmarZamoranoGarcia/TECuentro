@@ -15,6 +15,8 @@ using TEContigo.Modules.FoundItems.Repositories;
 using TEContigo.Modules.FoundItems.Services;
 using TEContigo.Modules.LostItems.Repositories;
 using TEContigo.Modules.LostItems.Services;
+using TEContigo.Modules.Matches.Repositories;
+using TEContigo.Modules.Matches.Services;
 using TEContigo.Modules.Reports.Repositories;
 using TEContigo.Modules.Reports.Services;
 using TEContigo.Modules.Users.Repositories;
@@ -22,6 +24,7 @@ using TEContigo.Modules.Users.Services;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 using TEContigo.Shared.Security.Password;
+using TEContigo.Shared.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpContextAccessor();
@@ -49,6 +52,9 @@ builder.Services.AddScoped<ILostItemsRepository,LostItemsRepository>();
 
 builder.Services.AddScoped<IFoundItemsRepository,FoundItemsRepository>();
 builder.Services.AddScoped<IFoundItemsService,FoundItemsService>();
+
+builder.Services.AddScoped<IMatchesRepository, MatchesRepository>();
+builder.Services.AddScoped<IMatchesService, MatchesService>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
@@ -148,6 +154,8 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+app.UseGlobalExceptionHandling();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -160,8 +168,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseHttpsRedirection();
-
-app.UseAuthorization();
 
 app.MapControllers();
 

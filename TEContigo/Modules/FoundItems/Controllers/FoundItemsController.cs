@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Services;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.FoundItems.Controllers;
 
@@ -19,12 +20,11 @@ public class FoundItemsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetFoundItems()
+    public async Task<IActionResult> GetAll([FromQuery] PaginationQueryDto query)
     {
-        var foundItems =
-            await _foundItemsService.GetAllAsync();
+        var result = await _foundItemsService.GetAllAsync(query.PageNumber, query.PageSize);
 
-        return Ok(foundItems);
+        return Ok(result);
     }
 
     [HttpGet("{id:long}")]

@@ -1,11 +1,12 @@
-﻿using TEContigo.Modules.Users.Models;
-using TEContigo.Modules.Users.DTOs;
+﻿using TEContigo.Modules.Users.DTOs;
+using TEContigo.Modules.Users.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Users.Services
 {
     public interface IUsersService
     {
-        Task<IEnumerable<UsersModel>> GetAllAsync();
+        Task<PagedResultDto<UsersModel>> GetAllAsync(int pageNumber, int pageSize);
 
         Task<UsersModel?> GetByIdAsync(long id);
 

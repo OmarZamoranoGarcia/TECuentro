@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TEContigo.Modules.Matches.Services;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Matches.Controllers
 {
@@ -17,11 +18,12 @@ namespace TEContigo.Modules.Matches.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] PaginationQueryDto query)
         {
-            var matches = await _matchesService.GetAllForCurrentUserAsync();
+            var result = await _matchesService.GetAllForCurrentUserAsync(
+                query.PageNumber, query.PageSize);
 
-            return Ok(matches);
+            return Ok(result);
         }
 
         [HttpGet("{id:long}")]

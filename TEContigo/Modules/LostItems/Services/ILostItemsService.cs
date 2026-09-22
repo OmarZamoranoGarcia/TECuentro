@@ -1,11 +1,12 @@
 ﻿using TEContigo.Modules.LostItems.DTOs;
 using TEContigo.Modules.LostItems.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.LostItems.Services
 {
     public interface ILostItemsService
     {
-        Task<IEnumerable<LostItemDto>> GetAllAsync();
+        Task<PagedResultDto<LostItemDto>> GetAllAsync(int pageNumber, int pageSize);
 
         Task<LostItemDto?> GetByIdAsync(long id);
 

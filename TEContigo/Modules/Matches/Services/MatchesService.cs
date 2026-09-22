@@ -1,4 +1,5 @@
 ﻿using Npgsql;
+using TEContigo.Infrastructure.ImagesStorage;
 using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
 using TEContigo.Modules.FoundItems.Repositories;
@@ -8,8 +9,8 @@ using TEContigo.Modules.LostItems.Repositories;
 using TEContigo.Modules.Matches.DTOs;
 using TEContigo.Modules.Matches.Models;
 using TEContigo.Modules.Matches.Repositories;
-using TEContigo.Infrastructure.ImagesStorage;
 using TEContigo.Shared.Matching;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security.CurrentUser;
 
 namespace TEContigo.Modules.Matches.Services;
@@ -45,6 +46,10 @@ public class MatchesService : IMatchesService
     // Código de error de PostgreSQL para violación de constraint UNIQUE.
     private const string PostgresUniqueViolation = "23505";
 
+    // Pagination
+    private const int DefaultPageSize = 10;
+    private const int MaxPageSize = 50;
+
     private readonly IMatchesRepository _matchesRepository;
     private readonly ILostItemsRepository _lostItemsRepository;
     private readonly IFoundItemsRepository _foundItemsRepository;
@@ -65,19 +70,44 @@ public class MatchesService : IMatchesService
         _imageService = imageService;
     }
 
-    public async Task<IEnumerable<MatchDto>> GetAllForCurrentUserAsync()
+    public async Task<PagedResultDto<MatchDto>> GetAllForCurrentUserAsync(
+    int pageNumber,
+    int pageSize)
     {
+        if (pageNumber < 1)
+        {
+            pageNumber = 1;
+        }
+
+        if (pageSize < 1)
+        {
+            pageSize = DefaultPageSize;
+        }
+        else if (pageSize > MaxPageSize)
+        {
+            pageSize = MaxPageSize;
+        }
+
         var isStaff =
             _currentUserService.Role == RoleAdmin ||
             _currentUserService.Role == RoleModerator;
 
-        var matches = isStaff
-            ? await _matchesRepository.GetAllAsync()
-            : await _matchesRepository.GetAllForUserAsync(_currentUserService.UserId);
+        var pagedMatches = isStaff
+            ? await _matchesRepository.GetAllAsync(pageNumber, pageSize)
+            : await _matchesRepository.GetAllForUserAsync(
+                _currentUserService.UserId, pageNumber, pageSize);
 
-        var tasks = matches.Select(MapToDtoAsync);
+        var tasks = pagedMatches.Items.Select(MapToDtoAsync);
 
-        return await Task.WhenAll(tasks);
+        var items = await Task.WhenAll(tasks);
+
+        return new PagedResultDto<MatchDto>
+        {
+            Items = items,
+            PageNumber = pagedMatches.PageNumber,
+            PageSize = pagedMatches.PageSize,
+            TotalCount = pagedMatches.TotalCount
+        };
     }
 
     public async Task<MatchDto?> GetByIdAsync(long id)
@@ -106,10 +136,7 @@ public class MatchesService : IMatchesService
             return;
         }
 
-        var foundItems = await _foundItemsRepository.GetAllAsync();
-
-        var activeFoundItems = foundItems.Where(
-            f => f.Status == StatusActive);
+        var activeFoundItems = await _foundItemsRepository.GetActiveAsync();
 
         foreach (var foundItem in activeFoundItems)
         {
@@ -126,10 +153,7 @@ public class MatchesService : IMatchesService
             return;
         }
 
-        var lostItems = await _lostItemsRepository.GetAllAsync();
-
-        var activeLostItems = lostItems.Where(
-            l => l.Status == StatusActive);
+        var activeLostItems = await _lostItemsRepository.GetActiveAsync();
 
         foreach (var lostItem in activeLostItems)
         {

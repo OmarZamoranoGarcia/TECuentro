@@ -1,10 +1,11 @@
 ﻿using TEContigo.Modules.Reports.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Reports.Repositories
 {
     public interface IReportsRepository
     {
-        Task<IEnumerable<ReportsModel>> GetAllAsync();
+        Task<PagedResultDto<ReportsModel>> GetAllAsync(int pageNumber, int pageSize);
 
         Task<ReportsModel?> GetByIdAsync(long id);
 

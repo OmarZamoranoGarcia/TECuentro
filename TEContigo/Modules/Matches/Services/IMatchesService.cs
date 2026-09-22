@@ -1,10 +1,11 @@
 ﻿using TEContigo.Modules.Matches.DTOs;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Matches.Services
 {
     public interface IMatchesService
     {
-        Task<IEnumerable<MatchDto>> GetAllForCurrentUserAsync();
+        Task<PagedResultDto<MatchDto>> GetAllForCurrentUserAsync(int pageNumber, int pageSize);
         Task<MatchDto?> GetByIdAsync(long id);
 
         /// <summary>

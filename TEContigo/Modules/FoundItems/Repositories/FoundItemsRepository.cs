@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.FoundItems.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.FoundItems.Repositories;
 
@@ -14,29 +15,74 @@ public class FoundItemsRepository : IFoundItemsRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IEnumerable<FoundItemsModel>> GetAllAsync()
+    public async Task<IEnumerable<FoundItemsModel>> GetActiveAsync()
     {
         using var connection =
             _connectionFactory.CreateConnection();
 
         const string sql = """
-            SELECT
-                id,
-                user_id AS UserId,
-                category AS Category,
-                article AS Article,
-                color AS Color,
-                location AS Location,
-                description AS Description,
-                photo_path AS PhotoPath,
-                status AS Status,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt
-            FROM FoundItems
-            ORDER BY created_at DESC;
-            """;
+        SELECT
+            id,
+            user_id AS UserId,
+            category AS Category,
+            article AS Article,
+            color AS Color,
+            location AS Location,
+            description AS Description,
+            photo_path AS PhotoPath,
+            status AS Status,
+            created_at AS CreatedAt,
+            updated_at AS UpdatedAt
+        FROM FoundItems
+        WHERE status = 'Activo'
+        ORDER BY created_at DESC;
+        """;
 
         return await connection.QueryAsync<FoundItemsModel>(sql);
+    }
+
+    public async Task<PagedResultDto<FoundItemsModel>> GetAllAsync(int pageNumber, int pageSize)
+    {
+        using var connection =
+            _connectionFactory.CreateConnection();
+
+        const string countSql = """
+        SELECT COUNT(*) FROM FoundItems;
+    """;
+
+        const string dataSql = """
+        SELECT
+            id,
+            user_id AS UserId,
+            category AS Category,
+            article AS Article,
+            color AS Color,
+            location AS Location,
+            description AS Description,
+            photo_path AS PhotoPath,
+            status AS Status,
+            created_at AS CreatedAt,
+            updated_at AS UpdatedAt
+        FROM FoundItems
+        ORDER BY created_at DESC
+        LIMIT @PageSize OFFSET @Offset;
+        """;
+
+        var totalCount = await connection.ExecuteScalarAsync<int>(countSql);
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        var items = await connection.QueryAsync<FoundItemsModel>(
+            dataSql,
+            new { PageSize = pageSize, Offset = offset });
+
+        return new PagedResultDto<FoundItemsModel>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     public async Task<FoundItemsModel?> GetByIdAsync(long id)

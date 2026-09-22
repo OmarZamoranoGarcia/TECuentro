@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.Reports.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Reports.Repositories;
 
@@ -13,26 +14,45 @@ public class ReportsRepository : IReportsRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IEnumerable<ReportsModel>> GetAllAsync()
+    public async Task<PagedResultDto<ReportsModel>> GetAllAsync(int pageNumber, int pageSize)
     {
         using var connection = _connectionFactory.CreateConnection();
 
-        const string sql = """
-            SELECT
-                id,
-                user_id AS UserId,
-                name AS Name,
-                category AS Category,
-                photo_path AS PhotoPath,
-                description AS Description,
-                status AS Status,
-                created_at AS CreatedAt,
-                updated_at AS UpdatedAt
-            FROM Reports
-            ORDER BY created_at DESC;
-         """;
+        const string countSql = """
+        SELECT COUNT(*) FROM Reports;
+    """;
 
-        return await connection.QueryAsync<ReportsModel>(sql);
+        const string dataSql = """
+        SELECT
+            id,
+            user_id AS UserId,
+            name AS Name,
+            category AS Category,
+            photo_path AS PhotoPath,
+            description AS Description,
+            status AS Status,
+            created_at AS CreatedAt,
+            updated_at AS UpdatedAt
+        FROM Reports
+        ORDER BY created_at DESC
+        LIMIT @PageSize OFFSET @Offset;
+    """;
+
+        var totalCount = await connection.ExecuteScalarAsync<int>(countSql);
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        var items = await connection.QueryAsync<ReportsModel>(
+            dataSql,
+            new { PageSize = pageSize, Offset = offset });
+
+        return new PagedResultDto<ReportsModel>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     public async Task<ReportsModel?> GetByIdAsync(long id)

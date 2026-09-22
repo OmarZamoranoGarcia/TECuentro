@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.Users.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Users.Repositories
 {
@@ -14,27 +15,46 @@ namespace TEContigo.Modules.Users.Repositories
             _connectionFactory = connectionFactory;
         }
 
-        public async Task<IEnumerable<UsersModel>> GetAllAsync()
+        public async Task<PagedResultDto<UsersModel>> GetAllAsync(int pageNumber, int pageSize)
         {
             using var connection =
                 _connectionFactory.CreateConnection();
 
-            const string sql = """
-                SELECT
-                id AS Id,
-                control_number AS ControlNumber,
-                first_name AS FirstName,
-                last_name_paternal AS LastNamePaternal,
-                last_name_maternal AS LastNameMaternal,
-                email AS Email,
-                role AS Role,
-                email_verified AS EmailVerified,
-                created_at AS CreatedAt
-                FROM Users
-                ORDER BY id;
-            """;
+            const string countSql = """
+        SELECT COUNT(*) FROM Users;
+    """;
 
-            return await connection.QueryAsync<UsersModel>(sql);
+            const string dataSql = """
+        SELECT
+        id AS Id,
+        control_number AS ControlNumber,
+        first_name AS FirstName,
+        last_name_paternal AS LastNamePaternal,
+        last_name_maternal AS LastNameMaternal,
+        email AS Email,
+        role AS Role,
+        email_verified AS EmailVerified,
+        created_at AS CreatedAt
+        FROM Users
+        ORDER BY id
+        LIMIT @PageSize OFFSET @Offset;
+    """;
+
+            var totalCount = await connection.ExecuteScalarAsync<int>(countSql);
+
+            var offset = (pageNumber - 1) * pageSize;
+
+            var items = await connection.QueryAsync<UsersModel>(
+                dataSql,
+                new { PageSize = pageSize, Offset = offset });
+
+            return new PagedResultDto<UsersModel>
+            {
+                Items = items,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
         }
 
         public async Task<UsersModel?> GetByIdAsync(long id)

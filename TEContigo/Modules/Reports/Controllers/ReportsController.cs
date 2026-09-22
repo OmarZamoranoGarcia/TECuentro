@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TEContigo.Modules.Reports.DTOs;
 using TEContigo.Modules.Reports.Services;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Reports.Controllers;
 
@@ -18,11 +19,11 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetReports()
+    public async Task<IActionResult> GetAll([FromQuery] PaginationQueryDto query)
     {
-        var reports = await _reportsService.GetAllAsync();
+        var result = await _reportsService.GetAllAsync(query.PageNumber, query.PageSize);
 
-        return Ok(reports);
+        return Ok(result);
     }
 
     [HttpGet("{id:long}")]

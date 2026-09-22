@@ -3,6 +3,7 @@ using TEContigo.Modules.LostItems.DTOs;
 using TEContigo.Modules.LostItems.Models;
 using TEContigo.Modules.LostItems.Repositories;
 using TEContigo.Modules.Matches.Services;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 
@@ -13,6 +14,9 @@ public class LostItemsService : ILostItemsService
     private const string RoleAdmin = "ADMIN";
     private const string RoleModerator = "MODERATOR";
     private const string StatusActive = "Activo";
+
+    private const int DefaultPageSize = 10;
+    private const int MaxPageSize = 50;
 
     private readonly ILostItemsRepository _lostItemsRepository;
     private readonly ICurrentUserService _currentUserService;
@@ -31,18 +35,40 @@ public class LostItemsService : ILostItemsService
         _matchesService = matchesService;
     }
 
-    public async Task<IEnumerable<LostItemDto>> GetAllAsync()
+    public async Task<PagedResultDto<LostItemDto>> GetAllAsync(int pageNumber, int pageSize)
     {
-        var lostItems = await _lostItemsRepository.GetAllAsync();
+        if (pageNumber < 1)
+        {
+            pageNumber = 1;
+        }
 
-        var tasks = lostItems.Select(async lostItem =>
+        if (pageSize < 1)
+        {
+            pageSize = DefaultPageSize;
+        }
+        else if (pageSize > MaxPageSize)
+        {
+            pageSize = MaxPageSize;
+        }
+
+        var pagedLostItems = await _lostItemsRepository.GetAllAsync(pageNumber, pageSize);
+
+        var tasks = pagedLostItems.Items.Select(async lostItem =>
         {
             var photoUrl = await GetPhotoUrlAsync(lostItem.PhotoPath);
 
             return MapToDto(lostItem, photoUrl);
         });
 
-        return await Task.WhenAll(tasks);
+        var items = await Task.WhenAll(tasks);
+
+        return new PagedResultDto<LostItemDto>
+        {
+            Items = items,
+            PageNumber = pagedLostItems.PageNumber,
+            PageSize = pagedLostItems.PageSize,
+            TotalCount = pagedLostItems.TotalCount
+        };
     }
 
     public async Task<LostItemDto?> GetByIdAsync(long id)

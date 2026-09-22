@@ -1,6 +1,7 @@
-﻿using TEContigo.Modules.Users.Models;
+﻿using TEContigo.Modules.Users.DTOs;
+using TEContigo.Modules.Users.Models;
 using TEContigo.Modules.Users.Repositories;
-using TEContigo.Modules.Users.DTOs;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security.Password;
 
 namespace TEContigo.Modules.Users.Services
@@ -10,6 +11,9 @@ namespace TEContigo.Modules.Users.Services
         private readonly IUsersRepository _usersRepository;
         private readonly IPasswordHasher _passwordHasher;
 
+        private const int DefaultPageSize = 10;
+        private const int MaxPageSize = 50;
+
         public UsersService(
             IUsersRepository usersRepository,
             IPasswordHasher passwordHasher)
@@ -18,9 +22,23 @@ namespace TEContigo.Modules.Users.Services
             _passwordHasher = passwordHasher;
         }
 
-        public async Task<IEnumerable<UsersModel>> GetAllAsync()
+        public async Task<PagedResultDto<UsersModel>> GetAllAsync(int pageNumber, int pageSize)
         {
-            return await _usersRepository.GetAllAsync();
+            if (pageNumber < 1)
+            {
+                pageNumber = 1;
+            }
+
+            if (pageSize < 1)
+            {
+                pageSize = DefaultPageSize;
+            }
+            else if (pageSize > MaxPageSize)
+            {
+                pageSize = MaxPageSize;
+            }
+
+            return await _usersRepository.GetAllAsync(pageNumber, pageSize);
         }
 
         public async Task<UsersModel?> GetByIdAsync(long id)

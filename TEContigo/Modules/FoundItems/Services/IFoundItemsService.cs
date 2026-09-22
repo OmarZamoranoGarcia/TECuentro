@@ -1,11 +1,12 @@
 ﻿using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.FoundItems.Services
 {
     public interface IFoundItemsService
     {
-        Task<IEnumerable<FoundItemDto>> GetAllAsync();
+        Task<PagedResultDto<FoundItemDto>> GetAllAsync(int pageNumber, int pageSize);
 
         Task<FoundItemDto?> GetByIdAsync(long id);
 

@@ -1,4 +1,5 @@
 ﻿using TEContigo.Modules.Matches.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Matches.Repositories;
 
@@ -8,13 +9,16 @@ public interface IMatchesRepository
     /// Trae todos los Matches sin filtrar por usuario. Pensado para
     /// ADMIN/MODERATOR, que deben poder ver cualquier match.
     /// </summary>
-    Task<IEnumerable<MatchesModel>> GetAllAsync();
+    Task<PagedResultDto<MatchesModel>> GetAllAsync(int pageNumber, int pageSize);
 
     /// <summary>
     /// Trae todos los Matches donde el usuario es dueño del
     /// LostItem o del FoundItem involucrado (requiere JOIN).
     /// </summary>
-    Task<IEnumerable<MatchesModel>> GetAllForUserAsync(long userId);
+    Task<PagedResultDto<MatchesModel>> GetAllForUserAsync(
+    long userId,
+    int pageNumber,
+    int pageSize);
 
     Task<MatchesModel?> GetByIdAsync(long id);
 

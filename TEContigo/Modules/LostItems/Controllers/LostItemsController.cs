@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TEContigo.Modules.LostItems.DTOs;
 using TEContigo.Modules.LostItems.Services;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.LostItems.Controllers;
 
@@ -19,12 +20,11 @@ public class LostItemsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLostItems()
+    public async Task<IActionResult> GetAll([FromQuery] PaginationQueryDto query)
     {
-        var lostItems =
-            await _lostItemsService.GetAllAsync();
+        var result = await _lostItemsService.GetAllAsync(query.PageNumber, query.PageSize);
 
-        return Ok(lostItems);
+        return Ok(result);
     }
 
     [HttpGet("{id:long}")]

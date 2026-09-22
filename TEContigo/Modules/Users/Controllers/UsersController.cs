@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TEContigo.Modules.Users.DTOs;
 using TEContigo.Modules.Users.Services;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Users.Controllers
 {
@@ -18,9 +19,9 @@ namespace TEContigo.Modules.Users.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetUsers()
+        public async Task<IActionResult> GetAll([FromQuery] PaginationQueryDto query)
         {
-            var result = await _usersService.GetAllAsync();
+            var result = await _usersService.GetAllAsync(query.PageNumber, query.PageSize);
 
             return Ok(result);
         }

@@ -3,6 +3,7 @@ using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
 using TEContigo.Modules.FoundItems.Repositories;
 using TEContigo.Modules.Matches.Services;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 
@@ -13,6 +14,9 @@ public class FoundItemsService : IFoundItemsService
     private const string RoleAdmin = "ADMIN";
     private const string RoleModerator = "MODERATOR";
     private const string StatusActive = "Activo";
+
+    private const int DefaultPageSize = 10;
+    private const int MaxPageSize = 50;
 
     private readonly IFoundItemsRepository _foundItemsRepository;
     private readonly ICurrentUserService _currentUserService;
@@ -31,18 +35,40 @@ public class FoundItemsService : IFoundItemsService
         _matchesService = matchesService;
     }
 
-    public async Task<IEnumerable<FoundItemDto>> GetAllAsync()
+    public async Task<PagedResultDto<FoundItemDto>> GetAllAsync(int pageNumber, int pageSize)
     {
-        var foundItems = await _foundItemsRepository.GetAllAsync();
+        if (pageNumber < 1)
+        {
+            pageNumber = 1;
+        }
 
-        var tasks = foundItems.Select(async foundItem =>
+        if (pageSize < 1)
+        {
+            pageSize = DefaultPageSize;
+        }
+        else if (pageSize > MaxPageSize)
+        {
+            pageSize = MaxPageSize;
+        }
+
+        var pagedFoundItems = await _foundItemsRepository.GetAllAsync(pageNumber, pageSize);
+
+        var tasks = pagedFoundItems.Items.Select(async foundItem =>
         {
             var photoUrl = await GetPhotoUrlAsync(foundItem.PhotoPath);
 
             return MapToDto(foundItem, photoUrl);
         });
 
-        return await Task.WhenAll(tasks);
+        var items = await Task.WhenAll(tasks);
+
+        return new PagedResultDto<FoundItemDto>
+        {
+            Items = items,
+            PageNumber = pagedFoundItems.PageNumber,
+            PageSize = pagedFoundItems.PageSize,
+            TotalCount = pagedFoundItems.TotalCount
+        };
     }
 
     public async Task<FoundItemDto?> GetByIdAsync(long id)

@@ -2,6 +2,7 @@
 using TEContigo.Modules.Reports.DTOs;
 using TEContigo.Modules.Reports.Models;
 using TEContigo.Modules.Reports.Repositories;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security.CurrentUser;
 
 namespace TEContigo.Modules.Reports.Services;
@@ -11,6 +12,9 @@ public class ReportsService : IReportsService
     private const string RoleAdmin = "ADMIN";
     private const string RoleModerator = "MODERATOR";
     private const string StatusPublished = "Publicado";
+
+    private const int DefaultPageSize = 10;
+    private const int MaxPageSize = 50;
 
     private readonly IReportsRepository _reportsRepository;
     private readonly ICurrentUserService _currentUserService;
@@ -27,13 +31,28 @@ public class ReportsService : IReportsService
         _imageService = imageService;
     }
 
-    public async Task<IEnumerable<ReportDto>> GetAllAsync()
+    public async Task<PagedResultDto<ReportDto>> GetAllAsync(int pageNumber, int pageSize)
     {
-        var reports = await _reportsRepository.GetAllAsync();
-
-        var tasks = reports.Select(async report =>
+        if (pageNumber < 1)
         {
-            var photoUrl = await GetPhotoUrlAsync(report.PhotoPath);
+            pageNumber = 1;
+        }
+
+        if (pageSize < 1)
+        {
+            pageSize = DefaultPageSize;
+        }
+        else if (pageSize > MaxPageSize)
+        {
+            pageSize = MaxPageSize;
+        }
+
+        var pagedReports = await _reportsRepository.GetAllAsync(pageNumber, pageSize);
+
+        var tasks = pagedReports.Items.Select(async report =>
+        {
+            var photoUrl = await _imageService.GetUrlAsync(
+                report.PhotoPath);
 
             return new ReportDto
             {
@@ -49,7 +68,15 @@ public class ReportsService : IReportsService
             };
         });
 
-        return await Task.WhenAll(tasks);
+        var items = await Task.WhenAll(tasks);
+
+        return new PagedResultDto<ReportDto>
+        {
+            Items = items,
+            PageNumber = pagedReports.PageNumber,
+            PageSize = pagedReports.PageSize,
+            TotalCount = pagedReports.TotalCount
+        };
     }
 
     public async Task<ReportDto?> GetByIdAsync(long id)

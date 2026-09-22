@@ -1,8 +1,9 @@
-﻿using System.Data;
-using Dapper;
+﻿using Dapper;
 using Npgsql;
+using System.Data;
 using TEContigo.Infrastructure.Database;
 using TEContigo.Modules.Matches.Models;
+using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Matches.Repositories;
 
@@ -21,53 +22,103 @@ public class MatchesRepository : IMatchesRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IEnumerable<MatchesModel>> GetAllAsync()
+    public async Task<PagedResultDto<MatchesModel>> GetAllAsync(int pageNumber, int pageSize)
     {
-        const string sql = """
-            SELECT id AS Id,
-                   lost_item_id AS LostItemId,
-                   found_item_id AS FoundItemId,
-                   match_percentage AS MatchPercentage,
-                   lost_user_chat_request AS LostUserChatRequest,
-                   found_user_chat_request AS FoundUserChatRequest,
-                   status AS Status,
-                   lost_user_return_confirmed AS LostUserReturnConfirmed,
-                   found_user_return_confirmed AS FoundUserReturnConfirmed,
-                   created_at AS CreatedAt,
-                   updated_at AS UpdatedAt
-            FROM Matches
-            ORDER BY created_at DESC
-            """;
+        const string countSql = """
+        SELECT COUNT(*) FROM Matches;
+    """;
+
+        const string dataSql = """
+        SELECT id AS Id,
+               lost_item_id AS LostItemId,
+               found_item_id AS FoundItemId,
+               match_percentage AS MatchPercentage,
+               lost_user_chat_request AS LostUserChatRequest,
+               found_user_chat_request AS FoundUserChatRequest,
+               status AS Status,
+               lost_user_return_confirmed AS LostUserReturnConfirmed,
+               found_user_return_confirmed AS FoundUserReturnConfirmed,
+               created_at AS CreatedAt,
+               updated_at AS UpdatedAt
+        FROM Matches
+        ORDER BY created_at DESC
+        LIMIT @PageSize OFFSET @Offset
+        """;
 
         using var connection = _connectionFactory.CreateConnection();
 
-        return await connection.QueryAsync<MatchesModel>(sql);
+        var totalCount = await connection.ExecuteScalarAsync<int>(countSql);
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        var items = await connection.QueryAsync<MatchesModel>(
+            dataSql,
+            new { PageSize = pageSize, Offset = offset });
+
+        return new PagedResultDto<MatchesModel>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
-    public async Task<IEnumerable<MatchesModel>> GetAllForUserAsync(long userId)
+    public async Task<PagedResultDto<MatchesModel>> GetAllForUserAsync(
+    long userId,
+    int pageNumber,
+    int pageSize)
     {
-        const string sql = """
-            SELECT m.id AS Id,
-                   m.lost_item_id AS LostItemId,
-                   m.found_item_id AS FoundItemId,
-                   m.match_percentage AS MatchPercentage,
-                   m.lost_user_chat_request AS LostUserChatRequest,
-                   m.found_user_chat_request AS FoundUserChatRequest,
-                   m.status AS Status,
-                   m.lost_user_return_confirmed AS LostUserReturnConfirmed,
-                   m.found_user_return_confirmed AS FoundUserReturnConfirmed,
-                   m.created_at AS CreatedAt,
-                   m.updated_at AS UpdatedAt
-            FROM Matches m
-            INNER JOIN LostItems li ON li.id = m.lost_item_id
-            INNER JOIN FoundItems fi ON fi.id = m.found_item_id
-            WHERE li.user_id = @UserId OR fi.user_id = @UserId
-            ORDER BY m.created_at DESC
-            """;
+        // El COUNT necesita el mismo JOIN + WHERE que la consulta de datos,
+        // porque "cuántos matches tiene este usuario" solo se puede saber
+        // cruzando con LostItems/FoundItems — no es un COUNT simple de Matches.
+        const string countSql = """
+        SELECT COUNT(*)
+        FROM Matches m
+        INNER JOIN LostItems li ON li.id = m.lost_item_id
+        INNER JOIN FoundItems fi ON fi.id = m.found_item_id
+        WHERE li.user_id = @UserId OR fi.user_id = @UserId
+        """;
+
+        const string dataSql = """
+        SELECT m.id AS Id,
+               m.lost_item_id AS LostItemId,
+               m.found_item_id AS FoundItemId,
+               m.match_percentage AS MatchPercentage,
+               m.lost_user_chat_request AS LostUserChatRequest,
+               m.found_user_chat_request AS FoundUserChatRequest,
+               m.status AS Status,
+               m.lost_user_return_confirmed AS LostUserReturnConfirmed,
+               m.found_user_return_confirmed AS FoundUserReturnConfirmed,
+               m.created_at AS CreatedAt,
+               m.updated_at AS UpdatedAt
+        FROM Matches m
+        INNER JOIN LostItems li ON li.id = m.lost_item_id
+        INNER JOIN FoundItems fi ON fi.id = m.found_item_id
+        WHERE li.user_id = @UserId OR fi.user_id = @UserId
+        ORDER BY m.created_at DESC
+        LIMIT @PageSize OFFSET @Offset
+        """;
 
         using var connection = _connectionFactory.CreateConnection();
 
-        return await connection.QueryAsync<MatchesModel>(sql, new { UserId = userId });
+        var totalCount = await connection.ExecuteScalarAsync<int>(
+            countSql,
+            new { UserId = userId });
+
+        var offset = (pageNumber - 1) * pageSize;
+
+        var items = await connection.QueryAsync<MatchesModel>(
+            dataSql,
+            new { UserId = userId, PageSize = pageSize, Offset = offset });
+
+        return new PagedResultDto<MatchesModel>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     public async Task<MatchesModel?> GetByIdAsync(long id)

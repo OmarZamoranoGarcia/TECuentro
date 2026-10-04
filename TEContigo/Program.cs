@@ -21,6 +21,12 @@ using TEContigo.Modules.Reports.Repositories;
 using TEContigo.Modules.Reports.Services;
 using TEContigo.Modules.Users.Repositories;
 using TEContigo.Modules.Users.Services;
+using TEContigo.Modules.ContactRequests.Repositories;
+using TEContigo.Modules.ContactRequests.Services;
+using TEContigo.Modules.Conversations.Repositories;
+using TEContigo.Modules.Conversations.Services;
+using TEContigo.Modules.Messages.Repositories;
+using TEContigo.Modules.Messages.Services;
 using TEContigo.Shared.Security;
 using TEContigo.Shared.Security.CurrentUser;
 using TEContigo.Shared.Security.Password;
@@ -55,6 +61,15 @@ builder.Services.AddScoped<IFoundItemsService,FoundItemsService>();
 
 builder.Services.AddScoped<IMatchesRepository, MatchesRepository>();
 builder.Services.AddScoped<IMatchesService, MatchesService>();
+
+builder.Services.AddScoped<IContactRequestsRepository, ContactRequestsRepository>();
+builder.Services.AddScoped<IContactRequestsService, ContactRequestsService>();
+
+builder.Services.AddScoped<IConversationsRepository, ConversationsRepository>();
+builder.Services.AddScoped<IConversationsService, ConversationsService>();
+
+builder.Services.AddScoped<IMessagesRepository, MessagesRepository>();
+builder.Services.AddScoped<IMessagesService, MessagesService>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

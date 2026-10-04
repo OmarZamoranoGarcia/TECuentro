@@ -1,5 +1,4 @@
 ﻿using TEContigo.Modules.Matches.Models;
-using TEContigo.Shared.Pagination;
 
 namespace TEContigo.Modules.Matches.Repositories;
 
@@ -9,16 +8,13 @@ public interface IMatchesRepository
     /// Trae todos los Matches sin filtrar por usuario. Pensado para
     /// ADMIN/MODERATOR, que deben poder ver cualquier match.
     /// </summary>
-    Task<PagedResultDto<MatchesModel>> GetAllAsync(int pageNumber, int pageSize);
+    Task<IEnumerable<MatchesModel>> GetAllAsync();
 
     /// <summary>
     /// Trae todos los Matches donde el usuario es dueño del
     /// LostItem o del FoundItem involucrado (requiere JOIN).
     /// </summary>
-    Task<PagedResultDto<MatchesModel>> GetAllForUserAsync(
-    long userId,
-    int pageNumber,
-    int pageSize);
+    Task<IEnumerable<MatchesModel>> GetAllForUserAsync(long userId);
 
     Task<MatchesModel?> GetByIdAsync(long id);
 
@@ -36,21 +32,12 @@ public interface IMatchesRepository
         bool isLostUser);
 
     /// <summary>
-    /// Update atómico condicionado: solo marca la confirmación en TRUE
-    /// si actualmente está en FALSE (evita condición de carrera y
-    /// evita des-confirmar, a diferencia del chat que sí es un switch).
-    /// Devuelve el estado de AMBOS flags después del intento, o null
-    /// si el Match no existe.
-    /// </summary>
-    Task<(bool LostConfirmed, bool FoundConfirmed)?> TryConfirmReturnAsync(
-        long matchId,
-        bool isLostUser);
-
-    /// <summary>
     /// Transición atómica de status: solo aplica el cambio si el status
     /// actual coincide exactamente con "fromStatus". Devuelve true si
     /// la transición se aplicó, false si no (ya estaba en otro status,
     /// por ejemplo porque otra petición concurrente ya lo cambió).
+    /// Ahora también la usa ConversationsService (futuro) para cerrar
+    /// el Match cuando su Conversation asociada se cierra.
     /// </summary>
     Task<bool> TryTransitionStatusAsync(
         long matchId,

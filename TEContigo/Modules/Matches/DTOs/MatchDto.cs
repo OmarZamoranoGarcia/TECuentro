@@ -10,8 +10,6 @@ namespace TEContigo.Modules.Matches.DTOs
         public string Status { get; set; } = string.Empty;
         public bool LostUserChatRequest { get; set; }
         public bool FoundUserChatRequest { get; set; }
-        public bool LostUserReturnConfirmed { get; set; }
-        public bool FoundUserReturnConfirmed { get; set; }
         public LostItemDto LostItem { get; set; } = null!;
         public FoundItemDto FoundItem { get; set; } = null!;
         public DateTime CreatedAt { get; set; }

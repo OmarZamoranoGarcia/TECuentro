@@ -291,6 +291,17 @@ namespace TEContigo.Modules.Auth.Services
                     "El código de verificación es incorrecto.");
             }
 
+            // NUEVO: el número de control puede haberse registrado mientras este
+            // pendiente esperaba verificación (ya no es único en PendingUsers).
+            if (await _authRepository.UserExistsByControlNumberAsync(pendingUser.ControlNumber))
+            {
+                // El pendiente ya no sirve: se borra para que no quede huérfano.
+                await _authRepository.DeletePendingUserAsync(pendingUser.Id);
+
+                throw new InvalidOperationException(
+                    "El número de control ya está registrado.");
+            }
+
             var userId = await _authRepository.ConfirmPendingUserAsync(pendingUser);
 
             return new MessageResponseDto

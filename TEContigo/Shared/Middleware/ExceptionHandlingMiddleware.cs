@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Npgsql;
 
 namespace TEContigo.Shared.Middleware;
 
@@ -52,6 +53,9 @@ public class ExceptionHandlingMiddleware
 
             InvalidOperationException =>
                 (StatusCodes.Status400BadRequest, exception.Message),
+
+            PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } =>
+                (StatusCodes.Status409Conflict,"Ya existe un registro con ese correo o número de control."),
 
             _ =>
                 (StatusCodes.Status500InternalServerError,

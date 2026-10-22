@@ -125,6 +125,7 @@ public class ReportsRepository : IReportsRepository
                 category = @Category,
                 photo_path = @PhotoPath,
                 description = @Description,
+                status = @Status,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @Id;
          """;

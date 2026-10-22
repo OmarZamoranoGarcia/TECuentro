@@ -170,8 +170,8 @@ public class FoundItemsService : IFoundItemsService
     }
 
     public async Task<FoundItemResponseDto> UpdateAsync(
-        long id,
-        UpdateFoundItemDto dto)
+    long id,
+    UpdateFoundItemDto dto)
     {
         var existingFoundItem =
             await _foundItemsRepository.GetByIdAsync(id);
@@ -182,57 +182,41 @@ public class FoundItemsService : IFoundItemsService
                 "La publicación no existe.");
         }
 
-        var currentUserId =
-            _currentUserService.UserId;
+        var currentUserId = _currentUserService.UserId;
+        var isAdmin = _currentUserService.IsInRole(RoleAdmin);
+        var isModerator = _currentUserService.IsInRole(RoleModerator);
+        var isOwner = existingFoundItem.UserId == currentUserId;
+        var canChangeStatus = isAdmin || isModerator;
 
-        var isAdmin =
-            _currentUserService.IsInRole(RoleAdmin);
-
-        var isModerator =
-            _currentUserService.IsInRole(RoleModerator);
-
-        var isOwner =
-            existingFoundItem.UserId == currentUserId;
+        if (!isOwner && !canChangeStatus)
+        {
+            throw new UnauthorizedAccessException(
+                "No tienes permiso para modificar esta publicación.");
+        }
 
         var oldPhotoPath = existingFoundItem.PhotoPath;
         string? newPhotoPath = null;
 
         try
         {
-            // ADMIN y MODERATOR solamente pueden modificar el status.
-            if (isAdmin || isModerator)
-            {
-                if (string.IsNullOrWhiteSpace(dto.Status))
-                {
-                    throw new ArgumentException(
-                        "Debes proporcionar un status.");
-                }
+            existingFoundItem.Category = dto.Category;
+            existingFoundItem.Article = dto.Article;
+            existingFoundItem.Color = dto.Color;
+            existingFoundItem.Location = dto.Location;
+            existingFoundItem.Description = dto.Description;
 
+            if (canChangeStatus && !string.IsNullOrWhiteSpace(dto.Status))
+            {
                 existingFoundItem.Status = dto.Status;
             }
-            // USER solamente puede modificar su propia publicación.
-            else if (isOwner)
-            {
-                existingFoundItem.Category = dto.Category;
-                existingFoundItem.Article = dto.Article;
-                existingFoundItem.Color = dto.Color;
-                existingFoundItem.Location = dto.Location;
-                existingFoundItem.Description = dto.Description;
 
-                if (dto.Photo != null)
-                {
-                    newPhotoPath =
-                        await _imageService.UploadAsync(
-                            dto.Photo,
-                            $"foundItems/{id}");
-
-                    existingFoundItem.PhotoPath = newPhotoPath;
-                }
-            }
-            else
+            if (dto.Photo != null)
             {
-                throw new UnauthorizedAccessException(
-                    "No tienes permiso para modificar esta publicación.");
+                newPhotoPath = await _imageService.UploadAsync(
+                    dto.Photo,
+                    $"foundItems/{id}");
+
+                existingFoundItem.PhotoPath = newPhotoPath;
             }
 
             existingFoundItem.UpdatedAt = DateTime.UtcNow;
@@ -242,8 +226,7 @@ public class FoundItemsService : IFoundItemsService
             if (newPhotoPath != null &&
                 !string.IsNullOrWhiteSpace(oldPhotoPath))
             {
-                await _imageService.DeleteAsync(
-                    oldPhotoPath);
+                await _imageService.DeleteAsync(oldPhotoPath);
             }
 
             return new FoundItemResponseDto
@@ -257,8 +240,7 @@ public class FoundItemsService : IFoundItemsService
         {
             if (newPhotoPath != null)
             {
-                await _imageService.DeleteAsync(
-                    newPhotoPath);
+                await _imageService.DeleteAsync(newPhotoPath);
             }
 
             throw;

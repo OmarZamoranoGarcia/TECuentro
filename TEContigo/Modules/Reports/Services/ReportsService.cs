@@ -11,6 +11,7 @@ public class ReportsService : IReportsService
 {
     private const string RoleAdmin = "ADMIN";
     private const string RoleModerator = "MODERATOR";
+    private const string RoleEditor = "EDITOR";
     private const string StatusPublished = "Publicado";
 
     private const int DefaultPageSize = 10;
@@ -182,40 +183,32 @@ public class ReportsService : IReportsService
             role == RoleAdmin ||
             role == RoleModerator;
 
-        if (!isOwner && !isAdminOrModerator)
+        var isEditor = role == RoleEditor;
+
+        if (!isOwner && !isAdminOrModerator && !isEditor)
         {
             throw new UnauthorizedAccessException(
                 "No tienes permisos para modificar este reporte.");
         }
 
-        if (isAdminOrModerator && !isOwner)
+        if (dto.Name != null)
         {
-            if (dto.Status != null)
-            {
-                report.Status = dto.Status;
-            }
+            report.Name = dto.Name;
         }
-        else
+
+        if (dto.Category != null)
         {
-            if (dto.Name != null)
-            {
-                report.Name = dto.Name;
-            }
+            report.Category = dto.Category;
+        }
 
-            if (dto.Category != null)
-            {
-                report.Category = dto.Category;
-            }
+        if (dto.Description != null)
+        {
+            report.Description = dto.Description;
+        }
 
-            if (dto.Description != null)
-            {
-                report.Description = dto.Description;
-            }
-
-            if (dto.Status != null && isAdminOrModerator)
-            {
-                report.Status = dto.Status;
-            }
+        if (dto.Status != null && isAdminOrModerator)
+        {
+            report.Status = dto.Status;
         }
 
         var oldPhotoPath = report.PhotoPath;

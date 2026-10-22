@@ -194,40 +194,35 @@ public class LostItemsService : ILostItemsService
         var oldPhotoPath = existingLostItem.PhotoPath;
         string? newPhotoPath = null;
 
+        var canChangeStatus = isAdmin || isModerator;
+
+        if (!isOwner && !canChangeStatus)
+        {
+            throw new UnauthorizedAccessException(
+                "No tienes permiso para modificar esta publicación.");
+        }
+
         try
         {
-            if (isAdmin || isModerator)
-            {
-                if (string.IsNullOrWhiteSpace(dto.Status))
-                {
-                    throw new ArgumentException(
-                        "Debes proporcionar un status.");
-                }
+            existingLostItem.Category = dto.Category;
+            existingLostItem.Article = dto.Article;
+            existingLostItem.Color = dto.Color;
+            existingLostItem.Location = dto.Location;
+            existingLostItem.Description = dto.Description;
 
+            if ((isAdmin || isModerator) &&
+                !string.IsNullOrWhiteSpace(dto.Status))
+            {
                 existingLostItem.Status = dto.Status;
             }
-            else if (isOwner)
-            {
-                existingLostItem.Category = dto.Category;
-                existingLostItem.Article = dto.Article;
-                existingLostItem.Color = dto.Color;
-                existingLostItem.Location = dto.Location;
-                existingLostItem.Description = dto.Description;
 
-                if (dto.Photo != null)
-                {
-                    newPhotoPath =
-                        await _imageService.UploadAsync(
-                            dto.Photo,
-                            $"lostItems/{id}");
-
-                    existingLostItem.PhotoPath = newPhotoPath;
-                }
-            }
-            else
+            if (dto.Photo != null)
             {
-                throw new UnauthorizedAccessException(
-                    "No tienes permiso para modificar esta publicación.");
+                newPhotoPath = await _imageService.UploadAsync(
+                    dto.Photo,
+                    $"lostItems/{id}");
+
+                existingLostItem.PhotoPath = newPhotoPath;
             }
 
             existingLostItem.UpdatedAt = DateTime.UtcNow;
@@ -237,8 +232,7 @@ public class LostItemsService : ILostItemsService
             if (newPhotoPath != null &&
                 !string.IsNullOrWhiteSpace(oldPhotoPath))
             {
-                await _imageService.DeleteAsync(
-                    oldPhotoPath);
+                await _imageService.DeleteAsync(oldPhotoPath);
             }
 
             return new LostItemResponseDto

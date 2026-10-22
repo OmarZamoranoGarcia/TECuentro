@@ -1,4 +1,5 @@
 ﻿using Npgsql;
+using TEContigo.Infrastructure.ImagesStorage;
 using TEContigo.Modules.Conversations.Services;
 using TEContigo.Modules.FoundItems.DTOs;
 using TEContigo.Modules.FoundItems.Models;
@@ -9,8 +10,8 @@ using TEContigo.Modules.LostItems.Repositories;
 using TEContigo.Modules.Matches.DTOs;
 using TEContigo.Modules.Matches.Models;
 using TEContigo.Modules.Matches.Repositories;
-using TEContigo.Infrastructure.ImagesStorage;
 using TEContigo.Shared.Matching;
+using TEContigo.Shared.Pagination;
 using TEContigo.Shared.Security.CurrentUser;
 
 namespace TEContigo.Modules.Matches.Services;
@@ -26,6 +27,9 @@ public class MatchesService : IMatchesService
     private const decimal ColorWeight = 15m;
     private const decimal LocationWeight = 15m;
     private const decimal DescriptionWeight = 20m;
+
+    private const int DefaultPageSize = 10;
+    private const int MaxPageSize = 50;
 
     // Umbral mínimo para que se cree el Match. Ajustable según
     // qué tan estricto quieras que sea el sistema.
@@ -67,19 +71,41 @@ public class MatchesService : IMatchesService
         _conversationsService = conversationsService;
     }
 
-    public async Task<IEnumerable<MatchDto>> GetAllForCurrentUserAsync()
+    public async Task<PagedResultDto<MatchDto>> GetAllForCurrentUserAsync(
+    int pageNumber, int pageSize)
     {
+        if (pageNumber < 1)
+        {
+            pageNumber = 1;
+        }
+
+        if (pageSize < 1)
+        {
+            pageSize = DefaultPageSize;
+        }
+        else if (pageSize > MaxPageSize)
+        {
+            pageSize = MaxPageSize;
+        }
+
         var isStaff =
             _currentUserService.Role == RoleAdmin ||
             _currentUserService.Role == RoleModerator;
 
-        var matches = isStaff
-            ? await _matchesRepository.GetAllAsync()
-            : await _matchesRepository.GetAllForUserAsync(_currentUserService.UserId);
+        var pagedMatches = isStaff
+            ? await _matchesRepository.GetAllAsync(pageNumber, pageSize)
+            : await _matchesRepository.GetAllForUserAsync(
+                _currentUserService.UserId, pageNumber, pageSize);
 
-        var tasks = matches.Select(MapToDtoAsync);
+        var items = await Task.WhenAll(pagedMatches.Items.Select(MapToDtoAsync));
 
-        return await Task.WhenAll(tasks);
+        return new PagedResultDto<MatchDto>
+        {
+            Items = items,
+            PageNumber = pagedMatches.PageNumber,
+            PageSize = pagedMatches.PageSize,
+            TotalCount = pagedMatches.TotalCount
+        };
     }
 
     public async Task<MatchDto?> GetByIdAsync(long id)

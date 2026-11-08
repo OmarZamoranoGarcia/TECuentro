@@ -17,7 +17,9 @@ public class S3ImageService : IImageService
         {
             "image/jpeg",
             "image/png",
-            "image/webp"
+            "image/webp",
+            "image/heic",
+            "image/heif"
         };
 
     public S3ImageService(
@@ -142,6 +144,8 @@ public class S3ImageService : IImageService
 
             "image/webp" => IsWebP(header),
 
+            "image/heic" or "image/heif" => IsHeif(header),
+
             _ => false
         };
 
@@ -183,6 +187,26 @@ public class S3ImageService : IImageService
                header[11] == 0x50;
     }
 
+    private static bool IsHeif(byte[] header)
+    {
+        return header[4] == 0x66 &&
+               header[5] == 0x74 &&
+               header[6] == 0x79 &&
+               header[7] == 0x70 &&
+               (IsBrand(header, "heic") ||
+                IsBrand(header, "heix") ||
+                IsBrand(header, "mif1") ||
+                IsBrand(header, "msf1"));
+    }
+
+    private static bool IsBrand(byte[] header, string brand)
+    {
+        return header[8] == brand[0] &&
+               header[9] == brand[1] &&
+               header[10] == brand[2] &&
+               header[11] == brand[3];
+    }
+
     private static string GetExtension(
         string contentType)
     {
@@ -191,6 +215,8 @@ public class S3ImageService : IImageService
             "image/jpeg" => ".jpg",
             "image/png" => ".png",
             "image/webp" => ".webp",
+            "image/heic" => ".heic",
+            "image/heif" => ".heif",
 
             _ => throw new ArgumentException(
                 "Formato de imagen no permitido.")
